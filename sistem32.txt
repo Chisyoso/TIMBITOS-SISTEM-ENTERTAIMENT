@@ -1,0 +1,241 @@
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <Wire.h>
+#include <MPU6050.h>
+int p; // puntos
+bool b = true; //blockea por animacion
+int mode = 0; // modo
+int in = 12; // inclineishon 
+MPU6050 mpu;
+int temp;
+int e = 0; //estado frfrfrfr
+int ia = 0; // musica xddd
+unsigned long ta = 0;
+bool cm = false;
+bool ch;
+bool cb;
+ int notes[] = {
+  330, 392, 440, 392, 330, 0,
+  392, 440, 494, 0,
+
+  440, 392, 330, 0,
+  370, 330, 294, 0,
+
+  330, 392, 440, 0,
+  392, 330, 294, 0,
+
+  165, 196, 233, 0,
+  196, 165, 0,
+
+  294, 330, 392, 0,
+  440, 392, 330, 0,
+
+  370, 392, 330, 0,
+  294, 330, 0,
+
+  392, 440, 392, 330, 0
+};
+
+int times[] = {
+  600, 600, 600, 600, 900, 300,
+  600, 600, 900, 600,
+
+  600, 600, 900, 400,
+  600, 600, 900, 400,
+
+  600, 600, 900, 400,
+  600, 900, 500,
+
+  600, 600, 600, 500,
+  600, 800, 600,
+
+  600, 600, 900, 400,
+  600, 600, 900, 400,
+
+  600, 600, 600, 400,
+  600, 900, 400,
+
+  600, 600, 600, 600, 1200
+};
+Adafruit_SSD1306 l(128, 64, &Wire);
+
+void god(){ // efecto de sonido good
+  b = false;
+  tone(D5, 900);
+  delay(150);
+  tone(D5, 800);
+  delay(150);
+  noTone(5);
+  b = true;
+}
+void damage(){ // efecto sonido daño 
+    b = false;
+  tone(D5, 400);
+  delay(150);
+  tone(D5, 150);
+  delay(150);
+  noTone(5);
+  b = true;
+  noTone(5);
+}
+void iper(int x, int y){ // icono personaje
+  l.fillCircle(x + 10, y + 10, 5, WHITE);
+  l.fillRect(x + 5, y + 15, 11, 5, WHITE);
+  l.drawRect(x, y, 20, 20, WHITE);
+}
+void ifiles(int x, int y){ // icono archivos
+  l.fillRect(x + 5, y + 5, 13, 10, WHITE);
+  l.fillRect(x + 6, y + 3, 7, 3, WHITE);
+  l.drawLine(x + 9, y + 4, x + 9 + 13,y + 4, BLACK);
+  l.drawRect(x, y, 20, 20, WHITE);
+}
+
+void iconf(int x, int y){ // icono configuracion
+  l.drawRect(x, y, 20, 20, WHITE);
+  for(int i = 0; i < 4; i++){
+    l.drawLine(x + 5 - 2 + i, y + 5 - 2 + i, x + 15 - 2 + i, y + 15 - 2 + i, WHITE);
+  }
+ l.fillCircle(x + 5, y + 5, 3, WHITE);
+ l.fillCircle(x + 15, y + 15, 3, WHITE);
+ l.fillRect(x + 3, y + 4, 5, 5, BLACK);
+ l.fillRect(x + 14, y + 13, 5, 5, BLACK);
+}
+void iun(int x, int y){ // icono desconocidp
+  l.drawRect(x, y, 20, 20,WHITE);
+}
+void conf(){
+  l.setCursor(0, 0);
+  l.println("configuracion ");
+  l.print("MUSICA: "); l.println(cm); 
+  l.print("BIOS CONF: "); l.println(cb);
+  l.print("HERRAM.: "); l.println(ch);
+  l.print("salir: ");  
+  cur(120, in);
+
+
+}
+void files();
+void pers();
+
+void setup() {
+  randomSeed(analogRead(A0) + micros());
+  l.begin(SSD1306_SWITCHCAPVCC, 0x3c);
+  l.display();
+  Wire.begin();
+  l.clearDisplay();
+  l.setTextColor(WHITE);
+  l.setTextSize(2);
+  mpu.initialize();
+  Serial.begin(9600);
+  pinMode(D5, OUTPUT);
+  pinMode(D6, INPUT_PULLUP);
+  // put your setup code here, to run once:
+  
+}
+void music(){
+
+  if ( millis() - ta > times[ia]) {
+
+    ia++;
+
+    if (ia >= 52) ia = 0;
+
+    tone(D5, notes[ia]);
+
+    ta = millis();
+  }
+}
+void cur(int x, int y){
+  l.fillTriangle(x -5, y -5, x +5, y -5, x, y, WHITE); 
+}
+
+void loop() {
+
+  l.clearDisplay();
+  int16_t ax, ay, az;
+  int16_t gx, gy, gz;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  if(ay > 3000){
+     if(in <= 12){
+      in = 22 * 5 + 12;
+    }
+    else{
+      in -= 22;
+    }
+    god();
+    delay(500);
+
+  }
+  else if(ay < -3000){
+  
+    if(in >= 22 * 5){
+      in = 12;
+    }
+    else{
+      in += 22;
+    }
+    god();
+    delay(500);
+  }
+ if(e == 1){
+ 
+  if(cm){music();} 
+  else{noTone(D5);}
+  l.setCursor(0, 0);
+  l.print("m: ");
+  l.print((millis() / 1000) / 60); 
+   iconf(2, 20);
+  
+   ifiles(24, 20);
+   iper(46, 20);
+   iun(68, 20);
+   iun(90, 20);
+   iun(112, 20);
+   cur(in, 45);
+   
+  if(digitalRead(D6) == LOW){
+   if(in == 12){
+    e = 2;
+   }
+   else if(in == 12 +22){
+    e = 3;
+   }
+   else if(in == 12 + 44){
+    e = 4;
+   }
+   else{
+    damage();
+   }
+  }
+ }
+ else if(e == 2){
+  conf();
+ }
+ else if(e == 3){
+  pers();
+ }
+ else if(e == 4){
+  files();
+ }
+  else if(e == 0){
+  l.setCursor(17 + 64, 17);
+  l.println("TIM.ios"); 
+  delay(500);
+  temp = 0;
+  while(temp < 100){
+    l.clearDisplay();
+    l.setCursor(30, 17);
+  l.println("TIM.os"); 
+    
+  l.drawCircle(16 + temp % 100 / 2 , 45, 5 , WHITE);
+   l.drawRect( 80 - temp % 100 / 2, 40,  10  , 10 , WHITE);
+   l.display();
+   temp++;
+   
+   delay(1);
+  }
+
+  e = 1;
+  }
+l.display();
+}

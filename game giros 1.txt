@@ -1,0 +1,171 @@
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <Wire.h>
+#include <MPU6050.h>
+int p; // puntos
+bool b = true; //blockea por animacion
+int mode = 0; // modo
+int in; // inclineishon 
+MPU6050 mpu;
+Adafruit_SSD1306 l(128, 64, &Wire);
+struct ob{
+double s = 0;
+int x = 64;
+int v = 0;
+};
+  ob c;
+  ob obj;
+void dc(int x, int y){
+  if(y == 1){
+  y = 45 - x / 6.4;
+  }
+  else if(y == 2){
+  y = 45;
+  }
+  else{
+  y = 25 + x / 6.4;
+  }
+l.fillCircle(x, y, 5, WHITE);
+}
+void dd(int x, int y){
+  if(y == 1){
+  y = 45 - x / 6.4;
+  }
+  else if(y == 2){
+  y = 45;
+  }
+  else{
+  y = 25 + x / 6.4;
+  }
+l.drawCircle(x, y, 5, WHITE);
+}
+void hear(int x, int y){
+  l.fillTriangle(x, y, x+4, y,x+2, y+4, WHITE);
+  l.fillCircle(x+1, y, 1, WHITE);
+  l.fillCircle(x+3, y, 1, WHITE);
+}
+void ln(int i){
+ 
+ if(i == 1){
+  l.drawLine(0, 50, 128, 30, WHITE);
+ }
+ else if(i == 2){
+l.drawLine(0, 50, 128, 50, WHITE);
+ }
+ else{
+  l.drawLine(0, 30, 128, 50, WHITE);
+ }
+}
+void god(){
+  b = false;
+  tone(D5, 900);
+  delay(150);
+  tone(D5, 800);
+  delay(150);
+  noTone(5);
+  b = true;
+}
+void damage(){
+    b = false;
+  tone(D5, 400);
+  delay(150);
+  tone(D5, 150);
+  delay(150);
+  noTone(5);
+  b = true;
+  noTone(5);
+}
+void setup() {
+  randomSeed(analogRead(A0) + micros());
+  l.begin(SSD1306_SWITCHCAPVCC, 0x3c);
+  l.display();
+  Wire.begin();
+  l.clearDisplay();
+  l.setTextColor(WHITE);
+  l.setTextSize(2);
+  mpu.initialize();
+  Serial.begin(9600);
+  pinMode(D5, OUTPUT);
+  pinMode(D6, INPUT_PULLUP);
+  obj.x = random(10, 118);
+  // put your setup code here, to run once:
+  
+}
+
+void loop() {
+ 
+  l.clearDisplay();
+  if(mode == 1){ 
+  int16_t ax, ay, az;
+  int16_t gx, gy, gz;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  if(b) noTone(D5);
+  
+  if(ay > 3000){
+    in = 1;
+    c.s -= 0.05;
+  }
+  else if(ay < -3000){
+    in = 0;
+    c.s += 0.05;
+  }
+  else{
+    if(c.s > 0){
+        c.s -= 0.05;
+    }
+    if(c.s < 0){
+      c.s  += 0.05;
+    }
+    in = 2;
+  }
+  
+  if(digitalRead(D6) == LOW){   
+    if(c.x < obj.x + 4 && c.x > obj.x - 4){
+    p++;
+ 
+      obj.x = random(10, 118);
+    god();
+    }
+    else {
+      c.v -= 1;
+      delay(100); 
+      tone(D5, 1000);
+      }
+  
+  }
+  c.x += c.s;
+  ln(in);
+  if(c.x < -50 || c.x > 133 || c.v <= 0){
+  damage();
+  mode = 0;
+  }
+  dc(c.x, in);
+  dd(obj.x, in);
+
+  l.setCursor(0, 0); // dibujamos en la pantalla la interfaz
+  l.print("puntos :"); 
+  l.print(p);
+    int x = 100;
+  for(int i = 0; i < c.v; i++){
+ 
+    hear(x, 20);
+    x += 5;
+  }
+}
+else{
+  noTone(D5);
+  l.setCursor(0, 0);
+  l.println("TIMBITOS"); 
+  l.print("EQUILIBRIT");
+  if(digitalRead(D6) == LOW){
+    mode = 1;
+    tone(D5, 1000);
+    c.s = 0;
+    c.x = 64;
+    c.v = 4;
+    p = 0;
+    b = true;
+  }
+}
+l.display();
+}

@@ -1,0 +1,187 @@
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <Wire.h>
+#include <MPU6050.h>
+int p = 0; // puntos
+bool b = true; 
+bool b2 = false; //blockea por animacion
+int mode = 0; // modo
+double frame = 0; // frame
+int temp; // temporal
+int gen = 0; // generador
+int in; // inclineishon 
+unsigned long t = millis(); //encerrado en el tiempo
+unsigned long t2 = millis(); //encerrado en el tiempo 2
+MPU6050 mpu;
+Adafruit_SSD1306 l(128, 64, &Wire);
+struct ob{ //objeto
+double s = 0;
+int x = 64;
+int v = 0;
+double p = 0;
+double y = 30;
+};
+  ob c;
+  ob ene[9];
+void car(int x, int y, int p){
+  l.fillRect(x , y, p, p/1.5,WHITE);
+  l.fillCircle(x + p/5, y + p/1.5, p/5, WHITE);
+  l.fillCircle(x + (p - p/5) -1, y + p/1.5, p/5, WHITE);
+}
+void hear(int x, int y){
+  l.fillTriangle(x, y, x+4, y,x+2, y+4, WHITE);
+  l.fillCircle(x+1, y, 1, WHITE);
+  l.fillCircle(x+3, y, 1, WHITE);
+}
+void f(int x){
+  
+ 
+  l.drawLine(x + 14,  64, x  + 46, 32, WHITE);
+  l.drawLine( x + 114  ,64, 82 + x, 32, WHITE);
+  for(int x2 = 0; x2 < 6; x2++){
+    l.drawLine(x + x2 + 61, 64,x + 64, 32, WHITE);
+  }
+  temp = 0;
+    for(int i = 1; i < 6; i++){
+      l.fillRect(x + 61 , 32 + temp + frame , 6, 1 + i, BLACK);
+      temp += 8;
+  }
+   l.drawLine(0, 32, 128, 32, WHITE);
+}
+void god(){
+  b = false;
+  tone(D5, 900);
+  delay(150);
+  tone(D5, 800);
+  delay(150);
+  noTone(5);
+  b = true;
+}
+void damage(){
+    b = false;
+  tone(D5, 400);
+  delay(150);
+  tone(D5, 150);
+  delay(150);
+  noTone(5);
+  b = true;
+  noTone(5);
+}
+void setup() {
+  randomSeed(analogRead(A0) + micros());
+  l.begin(SSD1306_SWITCHCAPVCC, 0x3c);
+  l.display();
+  Wire.begin();
+  l.clearDisplay();
+  l.setTextColor(WHITE);
+  l.setTextSize(2);
+  mpu.initialize();
+  Serial.begin(9600);
+  pinMode(D5, OUTPUT);
+  pinMode(D6, INPUT_PULLUP);
+  // put your setup code here, to run once:
+  
+}
+
+void loop() {
+  
+  l.clearDisplay();
+  if(mode == 1){ 
+  if(frame < 16){ frame += 0.2; }
+  else{ frame = 0;}
+   f(c.x/2 - 27);
+  int16_t ax, ay, az;
+  int16_t gx, gy, gz;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  if(b) noTone(D5);
+  if(millis() - t > 1500 + random(0, 10000)){
+  if(gen < 5){ gen++;}
+  else{ gen = 0;}
+  ene[gen].v = 1; 
+  ene[gen].x = random((c.x/2 - 27) + 46, 82 + (c.x/2 - 27));
+  ene[gen].y = 30;
+    t = millis();
+    }
+
+  for(int i = 0; i < 5; i++){
+    if(c.x < (ene[i].x + c.x/2 - 27) + ene[i].p &&
+    c.x + 15 > (ene[i].x + c.x/2 - 27) &&
+    55 < ene[i].y + ene[i].p/1.5 &&
+    50 + 10 > ene[i].y){
+      c.v--;
+      ene[i].v = 0;
+    ene[i].p = 0;
+    ene[i].x = 999;
+    ene[i].y = 999;
+      damage();
+    }
+    if(ene[i].v == 1){ 
+    ene[i].p += c.s + (c.s/2);
+    ene[i].y +=  c.s + c.s  ;}
+    
+    if(ene[i].p >= 31){
+      p++;
+    ene[i].v = 0;
+    ene[i].p = 0;
+    ene[i].x = 999;
+    ene[i].y = 999;
+    }
+    car(ene[i].x + c.x/2 - 27 , ene[i].y, ene[i].p);
+  }
+  if(ay > 3000){
+   c.x -= 2;
+   }
+  else if(ay < -3000){
+   c.x += 2;
+  }
+ 
+  
+  car(c.x, 50, 15);
+  if(b2 && millis() - t2 > 2000){
+    c.s = 0.2;
+    b2 = false;
+  }
+  if(digitalRead(D6) == LOW && !b2){   
+    t2 = millis(); 
+    b2 = true;
+    c.s = 0.4;
+    god();
+    }
+  if(c.x < - 10 || c.x > 128 || c.v <= 0){
+  damage();
+  mode = 0;
+  }
+  l.setCursor(0, 0); // dibujamos en la pantalla la interfaz
+  l.print("puntos :"); 
+  l.print(p);
+      temp = 100;
+  for(int i = 0; i < c.v; i++){
+ 
+    hear(temp, 20);
+    temp += 6;
+  }
+}
+else{
+  noTone(D5);
+  l.setCursor(0, 0);
+  l.println("TIMBITOS"); 
+  l.print("DRIVING");
+  if(digitalRead(D6) == LOW){
+    mode = 1;
+    tone(D5, 1000);
+    c.s = 0.2;
+    c.x = 59;
+    c.v = 3;
+    p = 0;
+    b = true;
+     for(int i = 0; i < 5; i++){
+ 
+    ene[i].v = 0;
+    ene[i].p = 0;
+    ene[i].x = 999;
+    ene[i].y = 999;
+    }
+  }
+}
+l.display();
+}
