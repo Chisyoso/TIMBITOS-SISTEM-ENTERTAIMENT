@@ -3,508 +3,206 @@
 #include <EEPROM.h>
 #include <Servo.h>
 
-
-// WIFI
-
-const char* ssid = "TU_WIFI";
-const char* wifiPassword = "TU_PASSWORD";
-
-
-// SERVIDOR
+const char* ssid="TU_WIFI";
+const char* wifiPassword="TU_PASSWORD";
 
 ESP8266WebServer server(80);
 
-
-// MEMORIA
-
 #define EEPROM_SIZE 64
 
-String password = "admin";
-
-
-// PINES
+String password="admin";
 
 #define SERVO_PIN D1
 #define LIGHT_PIN D2
 #define AIR_PIN D3
 
-
 Servo doorServo;
 
-
-// ESTADOS
-
-bool doorState = false;
-bool lightState = false;
-bool airState = false;
+bool doorState=false;
+bool lightState=false;
+bool airState=false;
 
 
+void cors(){
+    server.sendHeader("Access-Control-Allow-Origin","*");
+}
 
-// =====================
-// EEPROM
-// =====================
 
 void loadPassword(){
-
     EEPROM.begin(EEPROM_SIZE);
-
 
     String saved="";
 
-
     for(int i=0;i<32;i++){
+        char c=EEPROM.read(i);
 
-        char c = EEPROM.read(i);
+        if(c==0) break;
 
-
-        if(c==0)
-            break;
-
-
-        saved += c;
-
+        saved+=c;
     }
 
-
-    if(saved.length()>0){
-
-        password = saved;
-
-    }
-
-
+    if(saved.length()>0)
+        password=saved;
 }
-
 
 
 void savePassword(String pass){
-
     EEPROM.begin(EEPROM_SIZE);
 
-
-    for(int i=0;i<32;i++){
-
-        EEPROM.write(
-            i,
-            i<pass.length() ? pass[i] : 0
-        );
-
-    }
-
+    for(int i=0;i<32;i++)
+        EEPROM.write(i,i<pass.length()?pass[i]:0);
 
     EEPROM.commit();
-
-
 }
-
-
-
-
-
-// =====================
-// LOGIN
-// =====================
 
 
 void login(){
+    cors();
 
+    String body=server.arg("plain");
 
-    String body = server.arg("plain");
-
-
-    if(body.indexOf(password)>=0){
-
-        server.send(
-            200,
-            "text/plain",
-            "OK"
-        );
-
-    }
-
-    else{
-
-        server.send(
-            401,
-            "text/plain",
-            "ERROR"
-        );
-
-    }
-
+    if(body.indexOf(password)>=0)
+        server.send(200,"text/plain","OK");
+    else
+        server.send(401,"text/plain","ERROR");
 }
 
 
-
-
-// =====================
-// CONTROL
-// =====================
-
-
 void control(){
+    cors();
 
+    String body=server.arg("plain");
 
-    String body =
-    server.arg("plain");
-
+    bool state=body.indexOf("\"state\":1")>=0;
 
 
     if(body.indexOf("\"device\":\"door\"")>=0){
 
-
-        if(body.indexOf("\"state\":1")>=0){
-
-            doorState=true;
-
-            doorServo.write(90);
-
-        }
-
-        else{
-
-            doorState=false;
-
-            doorServo.write(0);
-
-        }
+        doorState=state;
+        doorServo.write(state?90:0);
 
     }
-
-
-
 
 
     if(body.indexOf("\"device\":\"light\"")>=0){
 
-
-        if(body.indexOf("\"state\":1")>=0){
-
-            lightState=true;
-
-            digitalWrite(
-                LIGHT_PIN,
-                HIGH
-            );
-
-        }
-
-        else{
-
-            lightState=false;
-
-            digitalWrite(
-                LIGHT_PIN,
-                LOW
-            );
-
-        }
+        lightState=state;
+        digitalWrite(LIGHT_PIN,state);
 
     }
-
-
-
 
 
     if(body.indexOf("\"device\":\"air\"")>=0){
 
-
-        if(body.indexOf("\"state\":1")>=0){
-
-            airState=true;
-
-            digitalWrite(
-                AIR_PIN,
-                HIGH
-            );
-
-        }
-
-        else{
-
-            airState=false;
-
-            digitalWrite(
-                AIR_PIN,
-                LOW
-            );
-
-        }
+        airState=state;
+        digitalWrite(AIR_PIN,state);
 
     }
 
 
-
-    server.send(
-        200,
-        "text/plain",
-        "OK"
-    );
-
-
+    server.send(200,"text/plain","OK");
 }
-
-
-
-
-
-// =====================
-// ESTADO
-// =====================
 
 
 void status(){
-
+    cors();
 
     String json="{";
 
+    json+="\"door\":";
+    json+=doorState?"true":"false";
 
-    json += "\"door\":";
-    json += doorState ? "true":"false";
+    json+=",\"light\":";
+    json+=lightState?"true":"false";
 
+    json+=",\"air\":";
+    json+=airState?"true":"false";
 
-    json += ",";
+    json+="}";
 
-
-    json += "\"light\":";
-    json += lightState ? "true":"false";
-
-
-    json += ",";
-
-
-    json += "\"air\":";
-    json += airState ? "true":"false";
-
-
-    json += "}";
-
-
-
-    server.send(
-        200,
-        "application/json",
-        json
-    );
-
-
+    server.send(200,"application/json",json);
 }
 
 
-
-
-// =====================
-// CAMBIAR PASSWORD
-// =====================
-
-
 void changePassword(){
+    cors();
 
+    String body=server.arg("plain");
 
-    String body =
-    server.arg("plain");
-
-
-
-    int oldPos =
-    body.indexOf("\"old\":\"");
-
-
-    int newPos =
-    body.indexOf("\"new\":\"");
-
+    int oldPos=body.indexOf("\"old\":\"");
+    int newPos=body.indexOf("\"new\":\"");
 
 
     if(oldPos>=0 && newPos>=0){
 
-
-        String oldPass =
-        body.substring(
+        String oldPass=body.substring(
             oldPos+7,
-            body.indexOf(
-                "\"",
-                oldPos+7
-            )
+            body.indexOf("\"",oldPos+7)
         );
 
-
-
-        String newPass =
-        body.substring(
+        String newPass=body.substring(
             newPos+7,
-            body.indexOf(
-                "\"",
-                newPos+7
-            )
+            body.indexOf("\"",newPos+7)
         );
-
 
 
         if(oldPass==password){
 
-
             password=newPass;
-
-
             savePassword(password);
 
-
-            server.send(
-                200,
-                "text/plain",
-                "OK"
-            );
-
-
+            server.send(200,"text/plain","OK");
             return;
-
         }
-
     }
 
-
-    server.send(
-        401,
-        "text/plain",
-        "ERROR"
-    );
-
-
+    server.send(401,"text/plain","ERROR");
 }
-
-
-
-
-// =====================
-// SETUP
-// =====================
 
 
 void setup(){
 
-
     Serial.begin(115200);
-
 
     loadPassword();
 
+    pinMode(LIGHT_PIN,OUTPUT);
+    pinMode(AIR_PIN,OUTPUT);
 
+    digitalWrite(LIGHT_PIN,LOW);
+    digitalWrite(AIR_PIN,LOW);
 
-    pinMode(
-        LIGHT_PIN,
-        OUTPUT
-    );
-
-
-    pinMode(
-        AIR_PIN,
-        OUTPUT
-    );
-
-
-    digitalWrite(
-        LIGHT_PIN,
-        LOW
-    );
-
-
-    digitalWrite(
-        AIR_PIN,
-        LOW
-    );
-
-
-
-    doorServo.attach(
-        SERVO_PIN
-    );
-
-
+    doorServo.attach(SERVO_PIN);
     doorServo.write(0);
 
 
+    WiFi.begin(ssid,wifiPassword);
 
+    Serial.print("Conectando");
 
-    WiFi.begin(
-        ssid,
-        wifiPassword
-    );
-
-
-    Serial.print(
-        "Conectando"
-    );
-
-
-    while(
-        WiFi.status()!=WL_CONNECTED
-    ){
+    while(WiFi.status()!=WL_CONNECTED){
 
         delay(500);
-
         Serial.print(".");
-
     }
 
 
     Serial.println();
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
 
 
-    Serial.print(
-        "IP: "
-    );
-
-
-    Serial.println(
-        WiFi.localIP()
-    );
-
-
-
-    server.on(
-        "/login",
-        HTTP_POST,
-        login
-    );
-
-
-    server.on(
-        "/control",
-        HTTP_POST,
-        control
-    );
-
-
-    server.on(
-        "/status",
-        HTTP_GET,
-        status
-    );
-
-
-    server.on(
-        "/password",
-        HTTP_POST,
-        changePassword
-    );
-
+    server.on("/login",HTTP_POST,login);
+    server.on("/control",HTTP_POST,control);
+    server.on("/status",HTTP_GET,status);
+    server.on("/password",HTTP_POST,changePassword);
 
     server.begin();
 
-
+    Serial.println("Servidor iniciado");
 }
 
 
-
-
-
-// =====================
-// LOOP
-// =====================
-
-
 void loop(){
-
     server.handleClient();
-
 }
