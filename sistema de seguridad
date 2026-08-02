@@ -46,8 +46,7 @@ void loadPassword(){
     if(saved.length()>0)
         password=saved;
 
-
-    Serial.print("Password actual: ");
+    Serial.print("Password: ");
     Serial.println(password);
 }
 
@@ -65,35 +64,55 @@ void savePassword(String pass){
 }
 
 
+void moveDoor(bool open){
+
+    if(doorState==open)
+        return;
+
+    doorState=open;
+
+    doorServo.attach(SERVO_PIN);
+
+    if(open){
+
+        Serial.println("Abriendo puerta");
+        doorServo.write(90);
+
+    }else{
+
+        Serial.println("Cerrando puerta");
+        doorServo.write(0);
+
+    }
+
+    delay(700);
+
+    doorServo.detach();
+}
+
+
 void login(){
 
     cors();
 
     String body=server.arg("plain");
 
-    Serial.println("\n--- LOGIN ---");
-    Serial.print("Recibido: ");
+    Serial.println("\nLOGIN");
     Serial.println(body);
 
-    Serial.print("Esperado: ");
-    Serial.println(password);
 
+    if(body.indexOf("\"password\":\""+password+"\"")>=0){
 
-    if(body.indexOf(password)>=0){
-
-        Serial.println("Login correcto");
-
+        Serial.println("Login OK");
         server.send(200,"text/plain","OK");
 
     }else{
 
-        Serial.println("Login incorrecto");
-
+        Serial.println("Login ERROR");
         server.send(401,"text/plain","ERROR");
 
     }
 }
-
 
 
 void control(){
@@ -102,7 +121,7 @@ void control(){
 
     String body=server.arg("plain");
 
-    Serial.println("\n--- CONTROL ---");
+    Serial.println("\nCONTROL");
     Serial.println(body);
 
 
@@ -111,17 +130,19 @@ void control(){
 
     if(body.indexOf("\"device\":\"door\"")>=0){
 
-        doorState=state;
-        doorServo.write(state?90:0);
+        moveDoor(state);
 
-        Serial.println(state?"Puerta abierta":"Puerta cerrada");
     }
 
 
     if(body.indexOf("\"device\":\"light\"")>=0){
 
         lightState=state;
-        digitalWrite(LIGHT_PIN,state);
+
+        digitalWrite(
+            LIGHT_PIN,
+            state
+        );
 
         Serial.println(state?"Luz ON":"Luz OFF");
     }
@@ -130,7 +151,11 @@ void control(){
     if(body.indexOf("\"device\":\"air\"")>=0){
 
         airState=state;
-        digitalWrite(AIR_PIN,state);
+
+        digitalWrite(
+            AIR_PIN,
+            state
+        );
 
         Serial.println(state?"Aire ON":"Aire OFF");
     }
@@ -138,7 +163,6 @@ void control(){
 
     server.send(200,"text/plain","OK");
 }
-
 
 
 void status(){
@@ -159,13 +183,12 @@ void status(){
     json+="}";
 
 
-    Serial.println("Estado enviado:");
-    Serial.println(json);
-
-
-    server.send(200,"application/json",json);
+    server.send(
+        200,
+        "application/json",
+        json
+    );
 }
-
 
 
 void changePassword(){
@@ -173,11 +196,6 @@ void changePassword(){
     cors();
 
     String body=server.arg("plain");
-
-
-    Serial.println("\n--- CAMBIO PASSWORD ---");
-    Serial.println(body);
-
 
     int oldPos=body.indexOf("\"old\":\"");
     int newPos=body.indexOf("\"new\":\"");
@@ -190,18 +208,10 @@ void changePassword(){
             body.indexOf("\"",oldPos+7)
         );
 
-
         String newPass=body.substring(
             newPos+7,
             body.indexOf("\"",newPos+7)
         );
-
-
-        Serial.print("Vieja: ");
-        Serial.println(oldPass);
-
-        Serial.print("Nueva: ");
-        Serial.println(newPass);
 
 
         if(oldPass==password){
@@ -226,7 +236,7 @@ void setup(){
 
     Serial.begin(115200);
 
-    Serial.println("\nIniciando ESP8266");
+    Serial.println("\nESP8266 CONTROL");
 
 
     loadPassword();
@@ -235,18 +245,24 @@ void setup(){
     pinMode(LIGHT_PIN,OUTPUT);
     pinMode(AIR_PIN,OUTPUT);
 
+
     digitalWrite(LIGHT_PIN,LOW);
     digitalWrite(AIR_PIN,LOW);
 
 
     doorServo.attach(SERVO_PIN);
     doorServo.write(0);
+    delay(500);
+    doorServo.detach();
 
 
-    Serial.println("Conectando WiFi...");
+    WiFi.begin(
+        ssid,
+        wifiPassword
+    );
 
-    WiFi.begin(ssid,wifiPassword);
 
+    Serial.print("WiFi");
 
     while(WiFi.status()!=WL_CONNECTED){
 
@@ -255,8 +271,7 @@ void setup(){
     }
 
 
-    Serial.println("\nWiFi conectado");
-
+    Serial.println();
     Serial.print("IP: ");
     Serial.println(WiFi.localIP());
 
@@ -270,9 +285,8 @@ void setup(){
     server.begin();
 
 
-    Serial.println("Servidor HTTP iniciado");
+    Serial.println("Servidor listo");
 }
-
 
 
 void loop(){
