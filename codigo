@@ -1,0 +1,67 @@
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+unsigned long t = millis();
+int m = 0; // modo
+int e = 0; // estado
+
+int leer(){
+  for(int i = 10; i < 14; i++){
+    if(digitalRead(i) == LOW){
+      return i - 9;
+    }
+  }
+}
+void pantalla(){
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("menu principal");
+  lcd.setCursor(0,1);
+  if(m == 0){
+    lcd.print("toca los botones para comenzar");
+  }
+  else if(m == 1){
+    lcd.print("dispensador de comida");
+  }
+  else if(m == 2){
+    lcd.print("comedor automatico");
+  }
+  else if(m == 3){
+    lcd.print("para mascotas");
+  }
+}
+
+void setup() {
+lcd.init();
+lcd.setCursor(0, 0);
+lcd.backlight();
+lcd.print("cargando...");
+for(int i = 10; i < 14; i++){
+  pinMode(i, INPUT_PULLUP);
+}
+delay(1000);
+}
+
+void loop(){
+  int c;
+  if(e == 0){
+  if(leer()!= 0)
+  e = 1;
+if(4000 < millis() - t ){
+m++;
+t = millis();
+if(m > 3){
+m = 0;
+}
+}
+
+pantalla();
+  }
+  else if(e == 1){
+    lcd.setCursor(0, 0);
+    lcd.clear();
+    lcd.println("MODO CONFIGURADOR");
+    lcd.println(leer());
+  }
+delay(100);
+}
