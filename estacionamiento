@@ -1,0 +1,294 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Servo.h>
+
+const char* ssid = "TU_WIFI";
+const char* password = "TU_CONTRASEÑA";
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define OLED_ADDRESS 0x3C
+
+#define SERVO_PIN D4
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+ESP8266WebServer server(80);
+Servo servo;
+
+String verificationCode = "";
+unsigned long codeCreatedAt = 0;
+const unsigned long CODE_DURATION = 60000;
+
+bool doorOpen = false;
+unsigned long doorOpenedAt = 0;
+const unsigned long DOOR_TIME = 5000;
+
+String generateCode() {
+    String code = "";
+
+    for (int i = 0; i < 6; i++) {
+        code += String(random(0, 10));
+    }
+
+    return code;
+}
+
+void showCode() {
+    display.clearDisplay();
+
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("PARK 5");
+
+    display.setCursor(91, 0);
+    display.println("ONLINE");
+
+    display.drawLine(0, 12, 127, 12, SSD1306_WHITE);
+
+    display.setTextSize(1);
+    display.setCursor(21, 22);
+    display.println("CODIGO DE ACCESO");
+
+    display.setTextSize(2);
+    display.setCursor(16, 39);
+    display.println(verificationCode);
+
+    display.display();
+}
+
+void generateNewCode() {
+    verificationCode = generateCode();
+    codeCreatedAt = millis();
+    showCode();
+}
+
+bool codeIsValid(String code) {
+    if (millis() - codeCreatedAt > CODE_DURATION) {
+        return false;
+    }
+
+    return code == verificationCode;
+}
+
+void openDoor() {
+    servo.write(90);
+    doorOpen = true;
+    doorOpenedAt = millis();
+
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setTextSize(2);
+    display.setCursor(25, 10);
+    display.println("ACCESO");
+
+    display.setCursor(31, 35);
+    display.println("OK");
+
+    display.display();
+}
+
+void closeDoor() {
+    servo.write(0);
+    doorOpen = false;
+    generateNewCode();
+}
+
+void handleRoot() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+
+    String json = "{";
+    json += "\"status\":\"online\",";
+    json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+    json += "\"door\":";
+    json += doorOpen ? "\"open\"" : "\"closed\"";
+    json += "}";
+
+    server.send(200, "application/json", json);
+}
+
+void handleCode() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+
+    String json = "{";
+    json += "\"code\":\"" + verificationCode + "\",";
+    json += "\"expiresIn\":";
+    json += String(
+        CODE_DURATION - min(
+            millis() - codeCreatedAt,
+            CODE_DURATION
+        )
+    );
+    json += "}";
+
+    server.send(200, "application/json", json);
+}
+
+void handleVerify() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+
+    if (!server.hasArg("code")) {
+        server.send(
+            400,
+            "application/json",
+            "{\"success\":false,\"error\":\"missing_code\"}"
+        );
+        return;
+    }
+
+    String code = server.arg("code");
+
+    if (!codeIsValid(code)) {
+        server.send(
+            403,
+            "application/json",
+            "{\"success\":false,\"error\":\"invalid_code\"}"
+        );
+        return;
+    }
+
+    openDoor();
+
+    verificationCode = "";
+
+    server.send(
+        200,
+        "application/json",
+        "{\"success\":true,\"door\":\"open\"}"
+    );
+}
+
+void handleDoor() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+
+    if (!server.hasArg("action")) {
+        server.send(
+            400,
+            "application/json",
+            "{\"success\":false,\"error\":\"missing_action\"}"
+        );
+        return;
+    }
+
+    String action = server.arg("action");
+
+    if (action == "open") {
+        openDoor();
+
+        server.send(
+            200,
+            "application/json",
+            "{\"success\":true,\"door\":\"open\"}"
+        );
+
+        return;
+    }
+
+    if (action == "close") {
+        closeDoor();
+
+        server.send(
+            200,
+            "application/json",
+            "{\"success\":true,\"door\":\"closed\"}"
+        );
+
+        return;
+    }
+
+    server.send(
+        400,
+        "application/json",
+        "{\"success\":false,\"error\":\"invalid_action\"}"
+    );
+}
+
+void handleOptions() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.sendHeader(
+        "Access-Control-Allow-Methods",
+        "GET,POST,OPTIONS"
+    );
+    server.sendHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type"
+    );
+
+    server.send(204);
+}
+
+void setup() {
+    Serial.begin(115200);
+
+    randomSeed(
+        analogRead(A0) +
+        micros()
+    );
+
+    servo.attach(SERVO_PIN);
+    servo.write(0);
+
+    Wire.begin();
+
+    if (!display.begin(
+        SSD1306_SWITCHCAPVCC,
+        OLED_ADDRESS
+    )) {
+        while (true) {
+            delay(1000);
+        }
+    }
+
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(25, 20);
+    display.println("CONECTANDO...");
+    display.display();
+
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+    }
+
+    server.on("/", HTTP_GET, handleRoot);
+    server.on("/code", HTTP_GET, handleCode);
+    server.on("/verify", HTTP_GET, handleVerify);
+    server.on("/door", HTTP_GET, handleDoor);
+
+    server.on("/", HTTP_OPTIONS, handleOptions);
+    server.on("/code", HTTP_OPTIONS, handleOptions);
+    server.on("/verify", HTTP_OPTIONS, handleOptions);
+    server.on("/door", HTTP_OPTIONS, handleOptions);
+
+    server.begin();
+
+    generateNewCode();
+
+    Serial.println();
+    Serial.println("PARK 5 ONLINE");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+}
+
+void loop() {
+    server.handleClient();
+
+    if (doorOpen &&
+        millis() - doorOpenedAt >= DOOR_TIME) {
+        closeDoor();
+    }
+
+    if (!doorOpen &&
+        millis() - codeCreatedAt >= CODE_DURATION) {
+        generateNewCode();
+    }
+}
